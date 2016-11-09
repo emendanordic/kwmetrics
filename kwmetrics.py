@@ -21,7 +21,7 @@
 # SOFTWARE.
 
 
-import argparse, csv, logging, os, re, sys
+import argparse, csv, logging, math, os, re, sys
 from collections import namedtuple
 
 import kwconstants as KW_CONST
@@ -80,7 +80,7 @@ class KwMetrics:
         # create regular expression pattern
         self.p_regexp_metric_refs = re.compile(KW_CONST.RE_MATCH_METRIC_REFS)
 
-        # main "database" of information storing all FileMetrics which contains
+        # main "database" of information storing FileMetrics,
         # FuncMetrics and ClassMetrics.
         self.file_metrics_db = dict()
         self.func_metrics_db = dict()
@@ -126,13 +126,23 @@ class KwMetrics:
         data = []
         self.logger.debug("Appending title {0}".format(title))
         data.append(title)
-        for file_id, file_metric in self.file_metrics_db.iteritems():
-            col = [file_metric.name]
-            if self.func_metrics_db: col.append('')
-            if self.class_metrics_db: col.append('')
-            col += self.get_csv_metric_values(file_metric.metrics)
-            self.logger.debug("Appending column {0}".format(col))
-            data.append(col)
+
+
+        for file_id, file_name in self.file_dict.iteritems():
+            # TODO: add regexp to match search paths or similar
+            if False:
+                continue
+            # go through each file and report metrics for it, if it has
+            # metrics to report...
+            if file_id in self.file_metrics_db:
+                file_metric = self.file_metrics_db[file_id]
+                col = [file_metric.name]
+                if self.func_metrics_db: col.append('')
+                if self.class_metrics_db: col.append('')
+                col += self.get_csv_metric_values(file_metric.metrics)
+                self.logger.debug("Appending column {0}".format(col))
+                data.append(col)
+
             func_metrics = [metrics for key, metrics \
                     in self.func_metrics_db.iteritems() if key.file_id==file_id]
             class_metrics = [metrics for key, metrics \
@@ -140,7 +150,6 @@ class KwMetrics:
             for func_metric in func_metrics:
                 col = [file_metric.name, func_metric.name]
                 if self.class_metrics_db: col.append('')
-                if self.class_metrics_db: col.append(KW_CONST.CSV_COLUMN_CLASS)
                 col += self.get_csv_metric_values(func_metric.metrics)
                 self.logger.debug("Appending column {0}".format(col))
                 data.append(col)
@@ -210,14 +219,48 @@ class KwMetrics:
                         key, EntityMetrics(name=name, metrics=dict()))
 
             p_replace_metric_kinds = re.compile('|'.join(loc_metrics_dict.keys()))
+            # print "HERERERERERERER AT TOP!!!! " + str(self.metrics_ref)
             for metric_ref in self.metrics_ref:
+                # print "HERERERERERERER AT TOP!!!! " + str(metric_ref)
                 # replace all metric kinds with values
                 result = self.p_regexp_metric_refs.sub(
                     lambda x: loc_metrics_dict[x.group()] \
                         if x.group() in loc_metrics_dict else '0',
                         metric_ref
                 )
-                metric_level_dict.metrics[metric_ref] = eval(result)
+                # TODO: check if Klocwork functions are used as we need to
+                # resolve these... Python will not know what they are...
+                # e.g.
+                regexp_result = re.search("([a-z]+)\(([0-9]+)\)", result)
+                if regexp_result:
+                    func = None
+                    param = None
+                    if regexp_result.group(1):
+                        func = regexp_result.group(1)
+                    if regexp_result.group(2):
+                        param = regexp_result.group(2)
+                    if func != None and param != None:
+                        if func == 'exp':
+                            try:
+                                # if param is zero it is likely the metric
+                                # value does not exist for this type of entity
+                                # (file/function/class)
+                                if eval(param) == 0:
+                                    result = 0
+                                else:
+                                    result = str(math.exp(float(param)))
+                            except OverflowError as e:
+                                self.logger.error(e)
+                                result = float("inf")
+
+                        else:
+                            sys.exit('Unsupported function "{0}"'.format(func))
+                    else:
+                        sys.exit('Something went wrong with evaluating a function')
+                # metric_level_dict.metrics[metric_ref] = eval(result)
+                if type(result) == 'str':
+                    result = eval(result)
+                metric_level_dict.metrics[metric_ref] = result
         self.logger.info("Processing metrics complete")
 
     # go through provided metric references and get the metric reference ids
@@ -247,8 +290,6 @@ class KwMetrics:
     def parse_metric_kinds_dat(self):
         with open(self.metric_kind_dat, 'r') as f:
             for line in [l.strip().split(';') for l in f]:
-                # self.metric_kind_dict[line[KW_CONST.METRIC_KIND_DAT_REF]] = MetricKind(id=line[KW_CONST.METRIC_KIND_DAT_ID],
-                # ref=line[KW_CONST.METRIC_KIND_DAT_REF], description=line[KW_CONST.METRIC_KIND_DAT_DESCRIPTION])
                 self.metric_id_to_ref_dict[line[KW_CONST.METRIC_KIND_DAT_ID]] = \
                     line[KW_CONST.METRIC_KIND_DAT_REF]
                 self.metric_ref_to_id_dict[line[KW_CONST.METRIC_KIND_DAT_REF]] = \
