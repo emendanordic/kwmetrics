@@ -148,13 +148,13 @@ class KwMetrics:
             class_metrics = [metrics for key, metrics \
                     in self.class_metrics_db.iteritems() if key.file_id==file_id]
             for func_metric in func_metrics:
-                col = [file_metric.name, func_metric.name]
+                col = [file_name, func_metric.name]
                 if self.class_metrics_db: col.append('')
                 col += self.get_csv_metric_values(func_metric.metrics)
                 self.logger.debug("Appending column {0}".format(col))
                 data.append(col)
             for class_metric in class_metrics:
-                col = [file_metric.name, class_metric.name]
+                col = [file_name, class_metric.name]
                 if self.func_metrics_db: col.append('')
                 if self.class_metrics_db: col.append(KW_CONST.CSV_COLUMN_CLASS)
                 col += self.get_csv_metric_values(class_metric.metrics)
@@ -258,7 +258,7 @@ class KwMetrics:
                     else:
                         sys.exit('Something went wrong with evaluating a function')
                 # metric_level_dict.metrics[metric_ref] = eval(result)
-                if type(result) == 'str':
+                if isinstance(result, basestring):
                     result = eval(result)
                 metric_level_dict.metrics[metric_ref] = result
         self.logger.info("Processing metrics complete")
