@@ -231,7 +231,7 @@ class KwMetrics:
                 # TODO: check if Klocwork functions are used as we need to
                 # resolve these... Python will not know what they are...
                 # e.g.
-                regexp_result = re.search("([a-z]+)\(([0-9]+)\)", result)
+                regexp_result = re.search("([a-z]+)\(([0-9]+.?[0-9]*)\)", result)
                 if regexp_result:
                     func = None
                     param = None
@@ -248,7 +248,7 @@ class KwMetrics:
                                 if eval(param) == 0:
                                     result = 0
                                 else:
-                                    result = str(math.exp(float(param)))
+                                    result = str(round(math.exp(float(param)), 2))
                             except OverflowError as e:
                                 self.logger.error(e)
                                 result = float("inf")
